@@ -1,0 +1,41 @@
+FROM debian:12.13
+
+# Отключение интерактивных диалогов APT
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg \
+    curl \
+    ca-certificates \
+    procps \
+    less \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://pgp.mongodb.com/server-8.0.asc | \
+   gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+
+RUN echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.3 main"  \
+    > /etc/apt/sources.list.d/mongodb-org-8.3.list
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mongodb-org=8.3.0 \
+    mongodb-org-database=8.3.0 \
+    mongodb-org-server=8.3.0 \
+    mongodb-org-mongos=8.3.0 \
+    mongodb-org-shell=8.3.0 \
+    mongodb-org-tools=8.3.0 \
+    mongodb-mongosh \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rm -rf /etc/mongo* && mkdir -p /etc/mongo
+
+COPY assets/mongod.conf /etc/mongo/mongod.conf
+COPY assets/mongo-keyfile /etc/mongo/mongo-keyfile
+
+RUN chown -R mongodb:mongodb /etc/mongo && \
+    chmod 400 /etc/mongo/mongo-keyfile
+
+USER mongodb
+ENV GLIBC_TUNABLES=glibc.pthread.rseq=0
+ENV HOME=/tmp
+CMD ["mongod", "--config", "/etc/mongo/mongod.conf"]

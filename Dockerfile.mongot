@@ -1,0 +1,45 @@
+FROM debian:12.13
+
+# Отключение интерактивных диалогов APT
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN groupadd -r mongodb && useradd -r -g mongodb mongodb && \
+    groupadd -r mongot && useradd -r -g mongot mongot
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg \
+    curl \
+    ca-certificates \
+    procps \
+    less \
+    tar  \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -LO https://downloads.mongodb.org/mongodb-search-community/0.53.0/mongot_community_0.53.0_linux_x86_64.tgz \
+    && tar -zxvf mongot_community_0.53.0_linux_x86_64.tgz \
+    && rm mongot_community_0.53.0_linux_x86_64.tgz
+
+RUN rm -rf /etc/mongo* && mkdir -p /etc/mongo
+
+COPY assets/mongot.conf /etc/mongo/mongot.conf
+COPY assets/mongo-keyfile /etc/mongo/mongo-keyfile
+
+# Создаем файл пароля для mongot
+RUN echo -n "mongot-search-password" > /etc/mongo/passwordFile
+
+# Исправление ошибки AccessDenied: Явно создаем директорию данных под root
+RUN mkdir -p /var/lib/mongot
+
+# Выставляем права для пользователя mongot на конфиги, файл пароля и директорию данных
+RUN chown -R mongot:mongot /etc/mongo && \
+    chown -R mongot:mongot /var/lib/mongot && \
+    chmod 400 /etc/mongo/mongo-keyfile && \
+    chmod 400 /etc/mongo/passwordFile
+
+# 3. Переключаемся на пользователя для рантайма в самом конце
+USER mongot
+ENV HOME=/tmp
+
+WORKDIR "mongot-community"
+
+CMD ["./mongot", "--config", "/etc/mongo/mongot.conf"]

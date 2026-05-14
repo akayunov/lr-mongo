@@ -1,0 +1,136 @@
+networks:
+  mongo-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/24  # Фиксированная подсеть для статических IP
+
+services:
+  # Наш кастомный DNS сервер
+  mongo-dns:
+    build:
+      context: .
+      dockerfile: Dockerfile.coredns
+    image: lr-mongo-dns:1.0.0
+    networks:
+      mongo-net:
+        ipv4_address: 10.5.0.5 # Фиксированный IP для DNS
+
+  # Ноды MongoDB (Репликасет)
+  mongo-primary:
+    build:
+      context: .
+      dockerfile: Dockerfile.mongo
+    image: lr-mongo:1.0.0
+    depends_on:
+      - mongo-dns
+    dns:
+      - 10.5.0.5
+    networks:
+      mongo-net:
+        ipv4_address: 10.5.0.11
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+
+  mongo-secondary1:
+    image: lr-mongo:1.0.0
+    depends_on:
+      - mongo-dns
+      - mongo-primary
+    dns:
+      - 10.5.0.5
+    networks:
+      mongo-net:
+        ipv4_address: 10.5.0.12
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+
+  mongo-secondary2:
+    image: lr-mongo:1.0.0
+    depends_on:
+      - mongo-dns
+      - mongo-primary
+    dns:
+      - 10.5.0.5
+    networks:
+      mongo-net:
+        ipv4_address: 10.5.0.13
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+
+  mongo-arbiter1:
+    image: lr-mongo:1.0.0
+    depends_on:
+      - mongo-dns
+      - mongo-primary
+    dns:
+      - 10.5.0.5
+    networks:
+      mongo-net:
+        ipv4_address: 10.5.0.14
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+
+  mongo-arbiter2:
+    image: lr-mongo:1.0.0
+    depends_on:
+      - mongo-dns
+      - mongo-primary
+    dns:
+      - 10.5.0.5
+    networks:
+      mongo-net:
+        ipv4_address: 10.5.0.15
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+
+  mongo-search:
+    build:
+      context: .
+      dockerfile: Dockerfile.mongot
+    image: lr-mongo-search:1.0.0
+    restart: unless-stopped
+    depends_on:
+      - mongo-dns
+      - mongo-primary
+    dns:
+      - 10.5.0.5
+    networks:
+      mongo-net:
+        ipv4_address: 10.5.0.20
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+
+  mongo-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: lr-mongo-test:1.0.0
+    command: tail -f /dev/null
+    dns:
+      - 10.5.0.5
+    environment:
+      - MONGO_URL=mongodb+srv://root:privetserver@mongo.local/?tls=false
+    depends_on:
+      - mongo-primary
+      - mongo-secondary1
+      - mongo-secondary2
+      - mongo-arbiter1
+      - mongo-arbiter2
+    networks:
+      mongo-net: {}
+    volumes:
+      - ./:/app
+      - /var/run/docker.sock:/var/run/docker.sock

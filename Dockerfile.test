@@ -1,0 +1,51 @@
+FROM debian:12.13
+
+# Отключение интерактивных диалогов APT
+ENV DEBIAN_FRONTEND=noninteractive
+
+# install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnupg \
+    curl \
+    ca-certificates \
+    dnsutils \
+    iputils-ping \
+    netcat-openbsd \
+    python3-full \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# install mongosh
+RUN curl -fsSL https://pgp.mongodb.com/server-8.0.asc | \
+   gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+
+RUN echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main" \
+   > /etc/apt/sources.list.d/mongodb-org-8.0.list
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mongodb-mongosh \
+    mongodb-org-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# install docker, docker compose
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+RUN cat <<EOF > /etc/apt/sources.list.d/docker.sources
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+
+WORKDIR /app
+
+ENV PATH="/venv/bin:$PATH"
+COPY pyproject.toml .
+RUN python3 -m venv /venv && pip3 install poetry==2.4.1 &&  poetry config virtualenvs.create false && poetry install --only dev
+#curl https://atlas-education.s3.amazonaws.com/sampledata.archive -o sampledata.archive
+COPY sampledata.archive /app

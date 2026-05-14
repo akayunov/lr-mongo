@@ -1,0 +1,51 @@
+FROM coredns/coredns:1.14.3
+
+# 1. Создаем файл зоны со всеми типами записей (A, SRV, TXT)
+COPY <<EOF /etc/coredns/db.mongo.local
+\$TTL    60
+@       IN      SOA     ns.mongo.local. admin.mongo.local. (
+                        2026051301 ; Серийный номер (ГГГГММДДВВ)
+                        7200       ; Refresh
+                        3600       ; Retry
+                        1209600    ; Expire
+                        3600 )     ; Minimum TTL
+
+; Определяем DNS-сервер для зоны
+@       IN      NS      ns.mongo.local.
+ns      IN      A       10.5.0.5
+
+; TXT запись с параметрами репликасета
+@       IN      TXT     "replicaSet=rs0&authSource=admin"
+
+; SRV записи для обнаружения всех 5 нод (Формат: Приоритет Вес Порт Хост)
+_mongodb._tcp.mongo.local.  IN  SRV  10 10 27017 mongo-primary.mongo.local.
+_mongodb._tcp.mongo.local.  IN  SRV  10 10 27017 mongo-secondary1.mongo.local.
+_mongodb._tcp.mongo.local.  IN  SRV  10 10 27017 mongo-secondary2.mongo.local.
+_mongodb._tcp.mongo.local.  IN  SRV  10 10 27017 mongo-arbiter1.mongo.local.
+_mongodb._tcp.mongo.local.  IN  SRV  10 10 27017 mongo-arbiter2.mongo.local.
+
+; A записи для хостов (должны совпадать с IP в docker-compose)
+mongo-primary      IN      A       10.5.0.11
+mongo-secondary1   IN      A       10.5.0.12
+mongo-secondary2   IN      A       10.5.0.13
+mongo-arbiter1     IN      A       10.5.0.14
+mongo-arbiter2     IN      A       10.5.0.15
+EOF
+
+
+# 2. Создаем Corefile, который считывает этот файл зоны
+COPY <<EOF /Corefile
+mongo.local {
+    file /etc/coredns/db.mongo.local
+    log
+    errors
+}
+
+. {
+    forward . 8.8.8.8 1.1.1.1
+    log
+    errors
+}
+EOF
+
+CMD ["-conf", "/Corefile"]
