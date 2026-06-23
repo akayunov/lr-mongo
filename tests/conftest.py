@@ -6,6 +6,7 @@ from random import randint
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import pytest
+from openai import OpenAI
 
 
 @pytest.fixture
@@ -30,6 +31,7 @@ def co():
         except subprocess.CalledProcessError as e:
             print(e.stdout)
             print(e.stderr)
+
     return wrapper
 
 
@@ -37,9 +39,12 @@ def co():
 def coa(mongo_url):
     def wrapper(*args, **kwargs):
         try:
-            return subprocess.check_output(["mongosh", mongo_url, "--json", "--eval", *args], text=True, **kwargs)
+            return subprocess.check_output(
+                ["mongosh", mongo_url, "--json=relaxed", "--eval", *args], text=True, **kwargs
+            )
         except subprocess.CalledProcessError as e:
             assert False, f"{e.stdout}\n{e.stderr}"
+
     return wrapper
 
 
@@ -49,13 +54,13 @@ def check_sample_databases():
     result = False
     cmd = """db.getMongo().getDBNames().includes('sample_mflix')"""
     try:
-        output = subprocess.check_output(["mongosh", default_url, "--json", "--eval", cmd],
-                                         stderr=subprocess.STDOUT,
-                text=True)
+        output = subprocess.check_output(
+            ["mongosh", default_url, "--json", "--eval", cmd], stderr=subprocess.STDOUT, text=True
+        )
         result = json.loads(output)
     except subprocess.CalledProcessError as e:
         print(e.output)
-    assert result is True, 'sample database is not exists, please run `./cmd.sh ra`'
+    assert result is True, "sample database is not exists, please run `./cmd.sh ra`"
 
 
 @pytest.fixture
@@ -128,3 +133,18 @@ def docker_pause_node():
 #     client = MongoClient(mongo_url, w="majority", wtimeoutMS=2000)  # 2 секунды (обязательно суффикс MS)
 #     yield client
 #     client.close()
+
+
+@pytest.fixture
+def get_embeddings():
+    client = OpenAI(base_url="http://openai-proxy:8000", api_key="none")
+
+    def wrapper(text_input):
+        response = client.embeddings.create(model="bge-m3", input=text_input)
+        # Если пришел список строк (батч)
+        if isinstance(text_input, list):
+            return [item.embedding for item in response.data]
+        # Если пришла одна строка
+        return response.data[0].embedding
+
+    return wrapper

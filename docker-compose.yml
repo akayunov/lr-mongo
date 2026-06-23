@@ -134,3 +134,34 @@ services:
     volumes:
       - ./:/app
       - /var/run/docker.sock:/var/run/docker.sock
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_storage:/root/.ollama
+    # Автоматически скачиваем микро-модель эмбеддингов при старте контейнера
+    entrypoint: /bin/sh
+    command: -c "ollama serve & sleep 5 && ollama pull bge-m3 && tail -f /dev/null"
+    restart: unless-stopped
+    networks:
+      mongo-net: { }
+
+  # Прокси-сервер, который превращает API Ollama в стандартный OpenAI API протокол
+  openai-proxy:
+    image: ghcr.io/berriai/litellm:main-latest
+    depends_on:
+      - ollama
+    environment:
+      - LITELLM_DROP_PARAMS=True
+    command: [
+      "--model", "ollama/bge-m3",
+      "--api_base", "http://ollama:11434",
+      "--host", "0.0.0.0",
+      "--port", "8000"
+    ]
+    restart: unless-stopped
+    networks:
+      mongo-net: { }
+
+volumes:
+  ollama_storage:

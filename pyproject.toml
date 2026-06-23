@@ -11,6 +11,7 @@ python = "^3.11"
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.3"
 pymongo = "^4.17.0"
+openai = "^2.44.0"
 black = "^26.5.0"
 isort ="^8.0.1"
 

@@ -9,17 +9,14 @@ def test_schema_validation(mongo_url):
                 "title": "Some validator",
                 "required": ["address"],
                 "properties": {
-                    "name": {
-                        "bsonType": "string",
-                        "description": "'name' must be string"
-                    },
+                    "name": {"bsonType": "string", "description": "'name' must be string"},
                     "year": {
                         "bsonType": "int",
                         "description": "'year must be in interval'",
                         "minimum": 1,
                         "maximum": 31,
-                    }
-                }
+                    },
+                },
             }
         }
     }
@@ -33,5 +30,3 @@ def test_schema_validation(mongo_url):
     cmd = """db.testColl.insertOne({name: "Alex", "year": 31, address: 2})"""
     output = subprocess.run(["mongosh", mongo_url, "--json", "--eval", cmd], capture_output=True)
     assert b'"Document failed validation"' not in output.stdout
-
-
